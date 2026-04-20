@@ -1,6 +1,10 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
+# Load shared keys from root .env first
+load_dotenv(dotenv_path=Path(__file__).resolve().parents[2] / '.env')
+# Load sensor-specific settings (API_ENDPOINT, DEVICE_ID, v.v.)
 load_dotenv()
 
 API_ENDPOINT  = os.getenv("API_ENDPOINT",  "http://localhost:5000/api/data")

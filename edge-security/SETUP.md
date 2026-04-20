@@ -12,16 +12,22 @@
 
 ## Bước 1 — Cấu hình keys
 
-Keys đã được tạo sẵn trong file `.env` của từng module. Nếu muốn dùng key mới:
+Keys chung được quản lý tập trung tại **1 file duy nhất**: `.env` ở root.
+
+```
+edge-security/
+├── .env                    ← API_KEY, HMAC_SECRET, AES_KEY (chỉnh ở đây)
+├── backend/api/.env        ← TIMESTAMP_TOLERANCE, DB_PATH
+└── backend/sensor-simulator/.env  ← API_ENDPOINT, DEVICE_ID, v.v.
+```
+
+Keys đã được tạo sẵn. Nếu muốn sinh key mới:
 
 ```bash
-# Sinh key ngẫu nhiên
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-Đảm bảo `API_KEY` và `HMAC_SECRET` trong 2 file sau **phải giống nhau**:
-- `backend/api/.env`
-- `backend/sensor-simulator/.env`
+Chỉnh sửa `.env` ở root — cả API server lẫn sensor sẽ tự đọc từ đó.
 
 ---
 
