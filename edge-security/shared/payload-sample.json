@@ -1,0 +1,6 @@
+{
+  "deviceId":    "sensor-001",
+  "temperature": 35.72,
+  "timestamp":   1713600000,
+  "nonce":       "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+}

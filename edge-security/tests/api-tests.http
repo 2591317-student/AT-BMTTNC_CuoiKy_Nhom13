@@ -1,0 +1,83 @@
+# Edge Security API — HTTP Test Cases
+# Dùng với VS Code REST Client extension hoặc JetBrains HTTP Client
+#
+# Trước khi chạy: cd backend/api && python app.py
+# API_KEY lấy từ backend/api/.env
+
+@base_url = http://localhost:5000
+@api_key  = 89583233bea43a5afd7503633c85701baeb35f3bc972f544
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TC-01: Normal payload (chữ ký hợp lệ)
+# Expected: 200 OK
+# → Chạy bằng: python sensor.py hoặc tamper_sensor.py (Scene 1)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TC-02: Sai API Key
+# Expected: 401 Unauthorized
+# ─────────────────────────────────────────────────────────────────────────────
+### TC-02
+POST {{base_url}}/api/data
+Content-Type: application/json
+X-API-Key: wrong-key-here
+X-Signature: doesnt-matter
+
+{
+  "deviceId":    "sensor-001",
+  "temperature": 35.72,
+  "timestamp":   1713600000,
+  "nonce":       "aaaaaaaa-0000-0000-0000-000000000001"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TC-03: Thiếu field bắt buộc (thiếu nonce)
+# Expected: 422 Unprocessable
+# ─────────────────────────────────────────────────────────────────────────────
+### TC-03
+POST {{base_url}}/api/data
+Content-Type: application/json
+X-API-Key: {{api_key}}
+X-Signature: anything
+
+{
+  "deviceId":    "sensor-001",
+  "temperature": 35.72,
+  "timestamp":   1713600000
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TC-04: Timestamp hết hạn (hơn 30 giây)
+# Expected: 403 Forbidden — Timestamp expired
+# ─────────────────────────────────────────────────────────────────────────────
+### TC-04
+POST {{base_url}}/api/data
+Content-Type: application/json
+X-API-Key: {{api_key}}
+X-Signature: anything
+
+{
+  "deviceId":    "sensor-001",
+  "temperature": 35.72,
+  "timestamp":   1000000000,
+  "nonce":       "aaaaaaaa-0000-0000-0000-000000000002"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TC-05: HMAC sai (payload bị sửa sau khi ký)
+# Expected: 403 Forbidden — HMAC mismatch, record lưu isValidSignature=0
+# → Chạy bằng: python tamper_sensor.py (Scene 2)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TC-06: Replay attack (nonce đã dùng rồi)
+# Expected: 403 Forbidden — Replay detected
+# → Chạy bằng: python tamper_sensor.py (Scene 3)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TC-07: GET /api/data — Lấy danh sách records đã decrypt
+# Expected: 200 + JSON array
+# ─────────────────────────────────────────────────────────────────────────────
+### TC-07
+GET {{base_url}}/api/data
