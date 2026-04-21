@@ -27,15 +27,20 @@ edge-security/
 
 ## Chạy nhanh
 
-```bash
-# 1. API server
-cd backend/api && pip install -r requirements.txt && python app.py
+```powershell
+# Terminal 1 — API server
+cd backend/api
+pip install -r requirements.txt
+python app.py
 
-# 2. Frontend (terminal mới)
-cd frontend && npm install && npm run dev
+# Terminal 2 — Frontend
+cd frontend
+npm install
+npm run dev
 
-# 3. Sensor (terminal mới)
-cd backend/sensor-simulator && python sensor.py
+# Terminal 3 — Sensor (tùy chọn)
+cd backend/sensor-simulator
+python sensor.py
 ```
 
 Chi tiết xem [SETUP.md](SETUP.md)

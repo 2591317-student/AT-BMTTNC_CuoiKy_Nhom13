@@ -101,22 +101,35 @@ python tamper_sensor.py
 
 Mở **3 terminal** song song:
 
-```
-Terminal 1:  cd backend/api              && python app.py
-Terminal 2:  cd frontend                 && npm run dev
-Terminal 3:  cd backend/sensor-simulator && python sensor.py
+```powershell
+# Terminal 1
+cd backend/api
+python app.py
+
+# Terminal 2
+cd frontend
+npm run dev
+
+# Terminal 3
+cd backend/sensor-simulator
+python sensor.py
 ```
 
 ---
 
 ## Cấu trúc .env
 
-### `backend/api/.env`
+### `.env` (root — shared keys)
 
 ```
 API_KEY=<key>
 HMAC_SECRET=<secret>
 AES_KEY=<key>
+```
+
+### `backend/api/.env`
+
+```
 TIMESTAMP_TOLERANCE=30
 DB_PATH=edge_data.db
 ```
@@ -125,8 +138,6 @@ DB_PATH=edge_data.db
 
 ```
 API_ENDPOINT=http://localhost:5000/api/data
-API_KEY=<key>          ← phải giống backend/api/.env
-HMAC_SECRET=<secret>   ← phải giống backend/api/.env
 DEVICE_ID=sensor-001
 SEND_INTERVAL=2
 TEMP_MIN=30.0

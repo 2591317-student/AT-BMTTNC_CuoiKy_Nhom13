@@ -16,18 +16,14 @@ pip install -r requirements.txt
 
 ## Cấu hình
 
-File `.env` đã có sẵn key khớp với sensor. Nếu cần tạo lại:
-
-```bash
-cp .env.example .env
-# Điền API_KEY, HMAC_SECRET, AES_KEY — phải giống với backend/sensor-simulator/.env
-```
+Shared keys (`API_KEY`, `HMAC_SECRET`, `AES_KEY`) được đọc từ **root `.env`** (cùng cấp với thư mục `backend/`).
+File `backend/api/.env` chỉ chứa cấu hình riêng của API:
 
 | Biến                | Mô tả                                      | Mặc định       |
 |---------------------|--------------------------------------------|----------------|
-| `API_KEY`           | Key xác thực thiết bị                      | dev-api-key    |
-| `HMAC_SECRET`       | Secret để verify chữ ký HMAC-SHA256        | dev-hmac-secret|
-| `AES_KEY`           | Key để mã hóa/giải mã nhiệt độ (AES-GCM)  | dev-aes-key    |
+| `API_KEY`           | Key xác thực thiết bị (root .env)          | dev-api-key    |
+| `HMAC_SECRET`       | Secret để verify chữ ký HMAC-SHA256 (root .env) | dev-hmac-secret|
+| `AES_KEY`           | Key để mã hóa/giải mã nhiệt độ (root .env) | dev-aes-key    |
 | `TIMESTAMP_TOLERANCE` | Độ trễ tối đa chấp nhận (giây)           | 30             |
 | `DB_PATH`           | Đường dẫn file SQLite                      | edge_data.db   |
 
@@ -110,13 +106,16 @@ backend/api/
 
 Mở 2 terminal:
 
-```bash
+```powershell
 # Terminal 1 — API server
-cd backend/api && python app.py
+cd backend/api
+python app.py
 
 # Terminal 2 — Sensor bình thường
-cd backend/sensor-simulator && python sensor.py
+cd backend/sensor-simulator
+python sensor.py
 
 # Hoặc chạy demo tấn công
-cd backend/sensor-simulator && python tamper_sensor.py
+cd backend/sensor-simulator
+python tamper_sensor.py
 ```

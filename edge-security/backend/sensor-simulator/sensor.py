@@ -44,6 +44,10 @@ def send_payload(payload: dict, signature: str) -> None:
               f"{status}")
     except requests.exceptions.ConnectionError:
         print(f"[ERROR] Cannot connect to {API_ENDPOINT} — is the server running?")
+    except requests.exceptions.Timeout:
+        print(f"[ERROR] Request timed out after 5s — server may be overloaded")
+    except requests.exceptions.RequestException as e:
+        print(f"[ERROR] Request failed: {e}")
 
 
 def main():

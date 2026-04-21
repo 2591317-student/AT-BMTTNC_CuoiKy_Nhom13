@@ -14,3 +14,8 @@ DEVICE_ID     = os.getenv("DEVICE_ID",     "sensor-001")
 SEND_INTERVAL = int(os.getenv("SEND_INTERVAL", "2"))
 TEMP_MIN      = float(os.getenv("TEMP_MIN", "30.0"))
 TEMP_MAX      = float(os.getenv("TEMP_MAX", "40.0"))
+
+if SEND_INTERVAL <= 0:
+    raise ValueError(f"SEND_INTERVAL must be > 0, got {SEND_INTERVAL}")
+if TEMP_MIN >= TEMP_MAX:
+    raise ValueError(f"TEMP_MIN ({TEMP_MIN}) must be < TEMP_MAX ({TEMP_MAX})")

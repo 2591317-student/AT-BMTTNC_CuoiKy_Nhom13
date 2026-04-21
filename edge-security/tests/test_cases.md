@@ -202,6 +202,75 @@ python tamper_sensor.py   # Scene 3 (tự động sau Scene 1)
 
 ---
 
+---
+
+## TC-13 — Expired Timestamp attack (Layer 2a)
+
+**Mục đích:** Kiểm tra reject gói tin gửi lại sau > 30 giây (timestamp cũ có chữ ký hợp lệ)
+
+**Cách chạy:** Click nút **⏱ Expired Timestamp** trên UI
+
+**Mô tả:** Payload hợp lệ, chữ ký đúng, nhưng `timestamp = now - 35s`
+
+**Expected:**
+- Action log: `✗ 403 — Timestamp expired — timestamp too old (35s > 30s tolerance)`
+- Response: `403 Forbidden`, `{ "reason": "Timestamp expired" }`
+- Audit Log Panel: entry cam, layer `L2a`
+- DB: không lưu record
+
+**Kết quả:** ✅ Pass
+
+---
+
+## TC-14 — GET /api/audit trả về audit log
+
+**Mục đích:** Kiểm tra endpoint trả về 20 request gần nhất
+
+**Cách chạy:** Dùng `tests/api-tests.http` hoặc `curl http://localhost:5000/api/audit`
+
+**Expected:**
+- Response: `200 OK`
+- Body: array JSON, mỗi phần tử có `time`, `code`, `reason`, `device`, `layer`
+- Tối đa 20 phần tử, sắp xếp mới nhất lên đầu
+
+**Kết quả:** ✅ Pass
+
+---
+
+## TC-15 — GET /api/stats trả về replay count + active devices
+
+**Mục đích:** Kiểm tra endpoint thống kê
+
+**Cách chạy:** `curl http://localhost:5000/api/stats`
+
+**Expected:**
+- Response: `200 OK`
+- Body: `{ "replayAttempts": N, "activeDevices": N }`
+- `replayAttempts` tăng sau mỗi lần TC-03 (Replay Attack)
+- `activeDevices` = số deviceId unique trong DB
+
+**Kết quả:** ✅ Pass
+
+---
+
+## TC-16 — Encryption Modal hiển thị đúng
+
+**Mục đích:** Kiểm tra modal breakdown nonce/cipher/tag
+
+**Cách chạy:** Sau TC-01, click icon 🔍 ở bất kỳ row nào trong bảng
+
+**Expected:**
+- Modal mở, hiển thị plaintext (nhiệt độ thực)
+- Phần breakdown: `[nonce · 16 chars]`, `[cipher · N chars]`, `[tag · 24 chars]`
+- Full base64 hiển thị đầy đủ phía dưới
+- Badge xanh "✓ Signature verified" cho record hợp lệ
+- Badge đỏ "✗ Tampered" cho record bị giả mạo
+- Nhấn `Esc` hoặc click ngoài modal để đóng
+
+**Kết quả:** ✅ Pass
+
+---
+
 ## Tổng kết
 
 | Nhóm | Test case | Pass |
@@ -209,4 +278,5 @@ python tamper_sensor.py   # Scene 3 (tự động sau Scene 1)
 | Backend security | TC-01 đến TC-06 | 6/6 |
 | Crypto layer | TC-07, TC-08 | 2/2 |
 | Frontend UI | TC-09 đến TC-12 | 4/4 |
-| **Tổng** | **12** | **12/12 (100%)** |
+| New features | TC-13 đến TC-16 | 4/4 |
+| **Tổng** | **16** | **16/16 (100%)** |
