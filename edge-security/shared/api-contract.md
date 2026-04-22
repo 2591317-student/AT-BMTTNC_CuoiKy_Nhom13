@@ -2,15 +2,15 @@
 
 ## POST /api/data
 
-Nhận dữ liệu từ sensor. Yêu cầu xác thực đầy đủ.
+Nhận dữ liệu từ sensor. Yêu cầu xác thực đầy đủ qua 4 lớp bảo vệ.
 
 ### Headers
 
-| Header        | Bắt buộc | Mô tả                          |
-|---------------|----------|--------------------------------|
-| Content-Type  | ✅        | `application/json`             |
-| X-API-Key     | ✅        | API key của thiết bị           |
-| X-Signature   | ✅        | HMAC-SHA256 của body (hex)     |
+| Header | Bắt buộc | Mô tả |
+|---|---|---|
+| Content-Type | ✅ | `application/json` |
+| X-API-Key | ✅ | API key của thiết bị |
+| X-Signature | ✅ | HMAC-SHA256 của body (hex) |
 
 ### Request Body
 
@@ -23,12 +23,12 @@ Nhận dữ liệu từ sensor. Yêu cầu xác thực đầy đủ.
 }
 ```
 
-| Field       | Kiểu    | Mô tả                                        |
-|-------------|---------|----------------------------------------------|
-| deviceId    | string  | ID của thiết bị                              |
-| temperature | float   | Nhiệt độ (°C), 2 chữ số thập phân           |
-| timestamp   | integer | Unix timestamp (giây) tại thời điểm gửi      |
-| nonce       | string  | UUID v4, mỗi request một giá trị khác nhau  |
+| Field | Kiểu | Ràng buộc |
+|---|---|---|
+| deviceId | string | required |
+| temperature | float | required, -50.0 đến 125.0 |
+| timestamp | integer | required, Unix seconds |
+| nonce | string | required, UUID v4, dùng một lần |
 
 ### Cách tính X-Signature
 
@@ -43,12 +43,22 @@ signature = hmac.new(HMAC_SECRET.encode(), canonical.encode(), hashlib.sha256).h
 
 ### Response Codes
 
-| Code | Ý nghĩa                                |
-|------|----------------------------------------|
-| 200  | OK — dữ liệu hợp lệ, đã lưu vào DB   |
-| 401  | Unauthorized — API key sai            |
-| 403  | Forbidden — HMAC sai / nonce trùng / timestamp hết hạn |
-| 422  | Unprocessable — thiếu field           |
+| Code | Layer | Ý nghĩa |
+|---|---|---|
+| 200 | OK | Dữ liệu hợp lệ, đã lưu vào DB |
+| 401 | L1 | Unauthorized — API key sai |
+| 403 | L2a | Timestamp expired (> 30s) |
+| 403 | L2b | Replay detected — nonce đã dùng |
+| 403 | L3 | HMAC mismatch — record vẫn lưu với `isValidSignature=0` |
+| 422 | — | Unprocessable — thiếu field / type sai / UUID không hợp lệ |
+| 429 | L4 | Rate limit exceeded — 30 requests/minute per IP |
+
+### WebSocket Event
+
+Mỗi POST /api/data thành công (kể cả tampered) phát sự kiện:
+```json
+{ "id": 42, "isValid": true }
+```
 
 ---
 
@@ -56,8 +66,7 @@ signature = hmac.new(HMAC_SECRET.encode(), canonical.encode(), hashlib.sha256).h
 
 Lấy danh sách 50 record gần nhất, đã decrypt.
 
-> **Không yêu cầu xác thực** — đây là thiết kế có chủ ý cho demo UI.
-> Dữ liệu nhiệt độ được mã hóa AES-256-GCM trong DB nên ciphertext có thể public mà không lộ plaintext.
+> **Không yêu cầu xác thực** — thiết kế có chủ ý cho demo UI.
 
 ### Response Body
 
@@ -96,21 +105,19 @@ Trả về 20 auth event gần nhất (in-memory, reset khi restart server).
 ]
 ```
 
-| Field  | Mô tả |
-|--------|-------|
-| time   | Unix timestamp của request |
-| code   | HTTP status code (200, 401, 403) |
+| Field | Mô tả |
+|---|---|
+| time | Unix timestamp của request |
+| code | HTTP status code (200, 401, 403, 429) |
 | reason | Mô tả kết quả auth |
 | device | deviceId từ payload (hoặc "unknown" nếu L1 fail) |
-| layer  | Layer nào xử lý: `L1` / `L2a` / `L2b` / `L3` / `OK` |
+| layer | `L1` / `L2a` / `L2b` / `L3` / `L4` / `OK` |
 
 ---
 
 ## GET /api/stats
 
 Trả về thống kê tổng hợp.
-
-> **Không yêu cầu xác thực** — dùng cho stat cards trên UI.
 
 ### Response Body
 
@@ -121,10 +128,30 @@ Trả về thống kê tổng hợp.
 }
 ```
 
-| Field          | Mô tả |
-|----------------|-------|
-| replayAttempts | Số lần nonce bị dùng lại (L2b reject), reset khi restart |
-| activeDevices  | Số deviceId unique trong DB |
+---
+
+## POST /api/reset
+
+Xóa toàn bộ DB records và audit log. Dùng cho demo.
+
+### Response Body
+
+```json
+{ "status": "ok", "message": "Demo reset — DB and audit log cleared" }
+```
+
+Phát WebSocket event: `{ "reset": true }`
+
+---
+
+## WebSocket Events (socket.io)
+
+Kết nối tại `ws://localhost:5000/socket.io/`
+
+| Event | Hướng | Payload | Khi nào |
+|---|---|---|---|
+| `data_update` | Server → Client | `{ id, isValid }` | Sau mỗi POST /api/data |
+| `data_update` | Server → Client | `{ reset: true }` | Sau POST /api/reset |
 
 ---
 
@@ -132,4 +159,4 @@ Trả về thống kê tổng hợp.
 
 Server chấp nhận request nếu: `|now - timestamp| <= 30 giây`
 
-Request cũ hơn 30 giây sẽ bị reject với `403 Timestamp expired`.
+Request cũ hơn 30 giây bị reject với `403 Timestamp expired`.

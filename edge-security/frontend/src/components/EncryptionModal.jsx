@@ -24,7 +24,7 @@ export default function EncryptionModal({ record, onClose }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <span>🔒 AES-256-GCM — Record #{record.id}</span>
+          <span>🔒 AES-256-GCM Breakdown — temperature is stored encrypted, never as plaintext</span>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
 

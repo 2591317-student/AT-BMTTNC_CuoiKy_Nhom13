@@ -64,6 +64,11 @@ def save_record(
         return cursor.lastrowid
 
 
+def clear_records() -> None:
+    with _connect() as conn:
+        conn.execute("DELETE FROM sensor_data")
+
+
 def get_records(limit: int = 50) -> list[dict]:
     with _connect() as conn:
         rows = conn.execute(

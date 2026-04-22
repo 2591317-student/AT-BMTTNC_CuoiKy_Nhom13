@@ -33,3 +33,10 @@ def get_log() -> list[dict]:
 
 def get_replay_count() -> int:
     return _replay_count
+
+
+def reset() -> None:
+    """Clear audit log and reset replay counter (used by POST /api/reset)."""
+    global _replay_count
+    _buffer.clear()
+    _replay_count = 0

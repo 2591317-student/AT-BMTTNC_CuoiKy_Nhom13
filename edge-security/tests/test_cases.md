@@ -5,7 +5,8 @@
 - API server: `http://localhost:5000`
 - Frontend:   `http://localhost:5173`
 - DB file:    `backend/api/edge_data.db`
-- Tool:       VS Code REST Client (`tests/api-tests.http`), trình duyệt, DB Browser for SQLite
+- Unit tests: `cd backend && python -m pytest tests/ -v`
+- Tool:       trình duyệt, DB Browser for SQLite, curl
 
 ---
 
@@ -13,14 +14,11 @@
 
 **Mục đích:** Kiểm tra luồng hoạt động bình thường
 
-**Cách chạy:**
-```bash
-cd backend/sensor-simulator && python sensor.py
-# Hoặc click nút "Send Normal" trên UI
-```
+**Cách chạy:** Click **▶ Send Normal** trên UI
 
 **Expected:**
-- Terminal API: `✅ [200] OK — temp=35.x°C saved`
+- Action log: `✓ 200 OK — temp=xx.x°C`
+- Layer Status: L1 ✓ L2a ✓ L2b ✓ L3 ✓ L4 ✓
 - UI: badge xanh **✓ Valid**, nhiệt độ hiển thị bình thường
 - DB: `isValidSignature = 1`, `encryptedTemp` là chuỗi base64
 
@@ -32,16 +30,13 @@ cd backend/sensor-simulator && python sensor.py
 
 **Mục đích:** Kiểm tra phát hiện giả mạo dữ liệu
 
-**Cách chạy:**
-```bash
-python tamper_sensor.py   # Scene 2
-# Hoặc click nút "Send Tampered" trên UI
-```
+**Cách chạy:** Click **⚠ Send Tampered** trên UI
 
 **Mô tả:** Temperature bị sửa từ `35.x` → `99.9`, signature giữ nguyên
 
 **Expected:**
-- Terminal API: `❌ [403] HMAC mismatch — record saved as tampered`
+- Action log: `✗ 403 — HMAC mismatch — record saved as tampered`
+- Layer Status: L3 ✗ (đỏ)
 - UI: badge đỏ **✗ Tampered**, temp = 99.9°C
 - DB: record được lưu với `isValidSignature = 0`
 
@@ -53,18 +48,13 @@ python tamper_sensor.py   # Scene 2
 
 **Mục đích:** Kiểm tra chống gửi lại gói tin cũ
 
-**Cách chạy:**
-```bash
-python tamper_sensor.py   # Scene 3 (tự động sau Scene 1)
-# Hoặc click nút "Replay Attack" trên UI (sau khi đã Send Normal)
-```
-
-**Mô tả:** Gửi lại đúng payload + signature hợp lệ từ TC-01
+**Cách chạy:** Click **▶ Send Normal**, sau đó **↻ Replay Attack**
 
 **Expected:**
-- Terminal API: `❌ [403] Replay detected — nonce already used`
+- Action log: `✗ 403 — Replay detected — replay blocked`
+- Layer Status: L2b ✗ (đỏ)
 - UI: không xuất hiện record mới
-- DB: không có record mới được thêm
+- Audit Log: `403 · L2b`
 
 **Kết quả:** ✅ Pass
 
@@ -74,11 +64,11 @@ python tamper_sensor.py   # Scene 3 (tự động sau Scene 1)
 
 **Mục đích:** Kiểm tra reject gói tin quá cũ (> 30 giây)
 
-**Cách chạy:** Dùng `tests/api-tests.http` → TC-04 (timestamp = 1000000000)
+**Cách chạy:** Click **⏱ Expired Timestamp** trên UI
 
 **Expected:**
-- Response: `403 Forbidden`
-- Body: `{ "reason": "Timestamp expired" }`
+- Action log: `✗ 403 — Timestamp expired (35s > 30s tolerance)`
+- Layer Status: L2a ✗ (đỏ)
 - DB: không lưu
 
 **Kết quả:** ✅ Pass
@@ -89,15 +79,11 @@ python tamper_sensor.py   # Scene 3 (tự động sau Scene 1)
 
 **Mục đích:** Kiểm tra reject thiết bị không xác thực
 
-**Cách chạy:**
-```bash
-# tests/api-tests.http → TC-02
-# Hoặc click nút "Wrong API Key" trên UI
-```
+**Cách chạy:** Click **🔑 Wrong API Key** trên UI
 
 **Expected:**
-- Terminal API: `❌ [401] Unauthorized — Invalid API key`
-- Response: `401 Unauthorized`
+- Action log: `✗ 401 — Invalid API key`
+- Layer Status: L1 ✗ (đỏ)
 - DB: không lưu
 
 **Kết quả:** ✅ Pass
@@ -108,11 +94,11 @@ python tamper_sensor.py   # Scene 3 (tự động sau Scene 1)
 
 **Mục đích:** Kiểm tra validation đầu vào
 
-**Cách chạy:** Dùng `tests/api-tests.http` → TC-03 (payload thiếu `nonce`)
+**Cách chạy:** `curl -X POST http://localhost:5000/api/data -H "X-API-Key: <key>" -d '{"deviceId":"x"}'`
 
 **Expected:**
 - Response: `422 Unprocessable`
-- Body: `{ "reason": "Missing fields: ['nonce']" }`
+- Body: `{ "reason": "Missing fields: ['nonce', 'temperature', 'timestamp']" }`
 
 **Kết quả:** ✅ Pass
 
@@ -122,11 +108,11 @@ python tamper_sensor.py   # Scene 3 (tự động sau Scene 1)
 
 **Mục đích:** Kiểm tra AES-GCM encrypt trước khi lưu
 
-**Cách chạy:** Sau TC-01, mở DB Browser for SQLite → load `backend/api/edge_data.db`
+**Cách chạy:** Sau TC-01, mở DB Browser → load `backend/api/edge_data.db`
 
 **Expected:**
-- Cột `encryptedTemp`: chuỗi base64 (ví dụ: `a3Fd9kL2mNp...==`)
-- Không thể đọc được nhiệt độ thực từ DB mà không có AES key
+- Cột `encryptedTemp`: chuỗi base64 (không đọc được)
+- Không thể đọc nhiệt độ từ DB mà không có AES key
 
 **Kết quả:** ✅ Pass
 
@@ -136,11 +122,12 @@ python tamper_sensor.py   # Scene 3 (tự động sau Scene 1)
 
 **Mục đích:** Kiểm tra AES-GCM decrypt khi GET
 
-**Cách chạy:** Dùng `tests/api-tests.http` → TC-07
+**Cách chạy:** `curl http://localhost:5000/api/data`
 
 **Expected:**
 - Response: `200 OK`
-- Body: array JSON, field `temperature` là số thực (ví dụ: `35.72`)
+- Body: array JSON, field `temperature` là số thực
+- Field `encryptedTemp` là base64 (cả hai đều có)
 
 **Kết quả:** ✅ Pass
 
@@ -150,11 +137,7 @@ python tamper_sensor.py   # Scene 3 (tự động sau Scene 1)
 
 **Mục đích:** Kiểm tra UI hiển thị đúng trạng thái hợp lệ
 
-**Cách chạy:** Sau TC-01, quan sát UI tại `http://localhost:5173`
-
-**Expected:**
-- Record mới xuất hiện với badge xanh **✓ Valid**
-- Stat card "Valid Signatures" tăng thêm 1
+**Expected:** Badge xanh, stat card "Valid Signatures" tăng 1
 
 **Kết quả:** ✅ Pass
 
@@ -164,26 +147,21 @@ python tamper_sensor.py   # Scene 3 (tự động sau Scene 1)
 
 **Mục đích:** Kiểm tra UI hiển thị đúng trạng thái bị giả mạo
 
-**Cách chạy:** Sau TC-02, quan sát UI
-
-**Expected:**
-- Record mới xuất hiện với badge đỏ **✗ Tampered**
-- Stat card "Tampered Detected" tăng thêm 1
-- Nhiệt độ hiển thị `99.90°C`
+**Expected:** Badge đỏ **✗ Tampered**, temp = 99.90°C, stat card "Tampered Detected" tăng 1
 
 **Kết quả:** ✅ Pass
 
 ---
 
-## TC-11 — Auto-refresh UI
+## TC-11 — WebSocket realtime update
 
-**Mục đích:** Kiểm tra UI tự động cập nhật
+**Mục đích:** Kiểm tra UI cập nhật ngay khi có data mới (không chờ 3s poll)
 
-**Cách chạy:** Để UI mở, chạy `python sensor.py`, không thao tác trình duyệt
+**Cách chạy:** Mở Network tab → ws frame, sau đó click **▶ Send Normal**
 
 **Expected:**
-- Bảng tự cập nhật sau tối đa 3 giây khi có record mới
-- Row mới flash xanh lá trong ~1.5 giây
+- WebSocket nhận event `data_update` trong < 500ms sau khi gửi
+- Bảng cập nhật ngay, không cần chờ poll cycle
 
 **Kết quả:** ✅ Pass
 
@@ -193,30 +171,21 @@ python tamper_sensor.py   # Scene 3 (tự động sau Scene 1)
 
 **Mục đích:** Kiểm tra JS Web Crypto API tạo signature giống Python
 
-**Cách chạy:** Click "Send Normal" trên UI → server nhận và verify thành công
+**Cách chạy:** Click **▶ Send Normal** → server verify thành công
 
-**Expected:**
-- Response: `200 OK` (nếu sai thì 403 HMAC mismatch)
+**Expected:** Response `200 OK`
 
 **Kết quả:** ✅ Pass
 
 ---
 
----
-
 ## TC-13 — Expired Timestamp attack (Layer 2a)
 
-**Mục đích:** Kiểm tra reject gói tin gửi lại sau > 30 giây (timestamp cũ có chữ ký hợp lệ)
+**Mục đích:** Kiểm tra reject gói tin có timestamp cũ có chữ ký hợp lệ
 
-**Cách chạy:** Click nút **⏱ Expired Timestamp** trên UI
+**Cách chạy:** Click **⏱ Expired Timestamp** (timestamp = now - 35s)
 
-**Mô tả:** Payload hợp lệ, chữ ký đúng, nhưng `timestamp = now - 35s`
-
-**Expected:**
-- Action log: `✗ 403 — Timestamp expired — timestamp too old (35s > 30s tolerance)`
-- Response: `403 Forbidden`, `{ "reason": "Timestamp expired" }`
-- Audit Log Panel: entry cam, layer `L2a`
-- DB: không lưu record
+**Expected:** `403 · L2a · Timestamp expired`
 
 **Kết quả:** ✅ Pass
 
@@ -224,48 +193,150 @@ python tamper_sensor.py   # Scene 3 (tự động sau Scene 1)
 
 ## TC-14 — GET /api/audit trả về audit log
 
-**Mục đích:** Kiểm tra endpoint trả về 20 request gần nhất
-
-**Cách chạy:** Dùng `tests/api-tests.http` hoặc `curl http://localhost:5000/api/audit`
+**Cách chạy:** `curl http://localhost:5000/api/audit`
 
 **Expected:**
-- Response: `200 OK`
-- Body: array JSON, mỗi phần tử có `time`, `code`, `reason`, `device`, `layer`
-- Tối đa 20 phần tử, sắp xếp mới nhất lên đầu
+- `200 OK`, array tối đa 20 phần tử
+- Mỗi entry có `time`, `code`, `reason`, `device`, `layer`
+- Newest first
 
 **Kết quả:** ✅ Pass
 
 ---
 
-## TC-15 — GET /api/stats trả về replay count + active devices
-
-**Mục đích:** Kiểm tra endpoint thống kê
+## TC-15 — GET /api/stats
 
 **Cách chạy:** `curl http://localhost:5000/api/stats`
 
-**Expected:**
-- Response: `200 OK`
-- Body: `{ "replayAttempts": N, "activeDevices": N }`
-- `replayAttempts` tăng sau mỗi lần TC-03 (Replay Attack)
-- `activeDevices` = số deviceId unique trong DB
+**Expected:** `{ "replayAttempts": N, "activeDevices": N }`
 
 **Kết quả:** ✅ Pass
 
 ---
 
-## TC-16 — Encryption Modal hiển thị đúng
+## TC-16 — AES-GCM Breakdown Modal
 
-**Mục đích:** Kiểm tra modal breakdown nonce/cipher/tag
-
-**Cách chạy:** Sau TC-01, click icon 🔍 ở bất kỳ row nào trong bảng
+**Cách chạy:** Sau TC-01, click 🔍 trên bất kỳ row nào
 
 **Expected:**
-- Modal mở, hiển thị plaintext (nhiệt độ thực)
-- Phần breakdown: `[nonce · 16 chars]`, `[cipher · N chars]`, `[tag · 24 chars]`
-- Full base64 hiển thị đầy đủ phía dưới
-- Badge xanh "✓ Signature verified" cho record hợp lệ
-- Badge đỏ "✗ Tampered" cho record bị giả mạo
-- Nhấn `Esc` hoặc click ngoài modal để đóng
+- Breakdown: `[nonce · 16 chars]`, `[cipher · N chars]`, `[tag · 24 chars]`
+- Badge xanh "✓ Signature verified" cho valid record
+- `Esc` hoặc click ngoài để đóng
+
+**Kết quả:** ✅ Pass
+
+---
+
+## TC-17 — Rate limiting (Layer 4)
+
+**Mục đích:** Kiểm tra chặn DoS — 30 requests/minute per IP
+
+**Cách chạy:** Click **▶▶ Auto-Send**, chờ request thứ 31 (sau ~60s)
+
+**Expected:**
+- Response: `429 Too Many Requests`
+- Audit Log: entry tím `429 · L4 · Rate limit exceeded`
+
+**Kết quả:** ✅ Pass
+
+---
+
+## TC-18 — POST /api/reset
+
+**Mục đích:** Kiểm tra reset xóa DB và audit log
+
+**Cách chạy:** Click **⟳ Reset Demo** (hoặc `curl -X POST localhost:5000/api/reset`)
+
+**Expected:**
+- Response: `{ "status": "ok" }`
+- Bảng records về trống
+- Audit Log về trống
+- Stat cards về 0
+
+**Kết quả:** ✅ Pass
+
+---
+
+## TC-19 — Filter table (All / Valid / Tampered)
+
+**Mục đích:** Kiểm tra filter buttons trên bảng records
+
+**Cách chạy:** Gửi 1 Valid + 1 Tampered, sau đó click từng filter
+
+**Expected:**
+- **✓ Valid**: chỉ hiện record valid
+- **✗ Tampered**: chỉ hiện record tampered
+- **All**: hiện tất cả
+
+**Kết quả:** ✅ Pass
+
+---
+
+## TC-20 — Export CSV
+
+**Mục đích:** Kiểm tra export dữ liệu ra file CSV
+
+**Cách chạy:** Click **↓ Export CSV** trên bảng records và audit log
+
+**Expected:**
+- File `records_<timestamp>.csv` với header: `id,deviceId,temperature,timestamp,isValidSignature,encryptedTemp`
+- File `audit_<timestamp>.csv` với header: `time,code,layer,device,reason`
+
+**Kết quả:** ✅ Pass
+
+---
+
+## TC-21 — Countdown refresh timer
+
+**Mục đích:** Kiểm tra countdown đếm ngược đến lần refresh tiếp theo
+
+**Cách chạy:** Quan sát khu vực toolbar bên phải bảng records
+
+**Expected:**
+- Text "refresh in Xs" đếm từ 3 xuống 1 rồi reset về 3
+- Countdown reset về 3 khi nhấn bất kỳ demo button nào
+
+**Kết quả:** ✅ Pass
+
+---
+
+## TC-22 — Temperature chart
+
+**Mục đích:** Kiểm tra biểu đồ hiển thị đúng màu theo trạng thái
+
+**Cách chạy:** Gửi một số Valid + Tampered records, quan sát chart
+
+**Expected:**
+- Dot xanh = valid, dot đỏ = tampered, dot cam = valid nhưng > 38°C
+- Reference line màu cam tại 38°C
+- Tooltip hiển thị đúng temp, device, status
+
+**Kết quả:** ✅ Pass
+
+---
+
+## TC-23 — Auto-send mode
+
+**Mục đích:** Kiểm tra gửi payload tự động liên tục
+
+**Cách chạy:** Click **▶▶ Auto-Send**, quan sát trong 10 giây
+
+**Expected:**
+- Counter tăng dần (x sent)
+- Records mới liên tục xuất hiện trong bảng
+- Click lại để dừng, counter reset về 0
+
+**Kết quả:** ✅ Pass
+
+---
+
+## TC-24 — Unit tests backend (pytest)
+
+**Mục đích:** Kiểm tra toàn bộ backend logic qua automated tests
+
+**Cách chạy:** `cd backend && python -m pytest tests/ -v`
+
+**Expected:** `37 passed` — test_crypto (14), test_audit (7), test_database (8), test_middleware (8)
 
 **Kết quả:** ✅ Pass
 
@@ -277,6 +348,8 @@ python tamper_sensor.py   # Scene 3 (tự động sau Scene 1)
 |---|---|---|
 | Backend security | TC-01 đến TC-06 | 6/6 |
 | Crypto layer | TC-07, TC-08 | 2/2 |
-| Frontend UI | TC-09 đến TC-12 | 4/4 |
-| New features | TC-13 đến TC-16 | 4/4 |
-| **Tổng** | **16** | **16/16 (100%)** |
+| WebSocket + Realtime | TC-11, TC-12 | 2/2 |
+| Frontend UI | TC-09, TC-10 | 2/2 |
+| Extended features | TC-13 đến TC-16 | 4/4 |
+| New features (v2) | TC-17 đến TC-24 | 8/8 |
+| **Tổng** | **24** | **24/24 (100%)** |

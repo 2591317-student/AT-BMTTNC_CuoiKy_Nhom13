@@ -2,10 +2,10 @@
 __pycache__/
 *.py[cod]
 *.pyo
+.pytest_cache/
 
 # Environment / secrets
-!.env
-!.env.example
+# .env files are intentionally tracked — demo project, no real secrets
 
 # Database
 *.db

@@ -2,22 +2,16 @@
 # Dùng với VS Code REST Client extension hoặc JetBrains HTTP Client
 #
 # Trước khi chạy: cd backend/api && python app.py
-# API_KEY lấy từ backend/api/.env
+# API_KEY lấy từ backend/api/.env hoặc root .env
 
-@base_url = http://localhost:5000
-@api_key  = 89583233bea43a5afd7503633c85701baeb35f3bc972f544
-
-# ─────────────────────────────────────────────────────────────────────────────
-# TC-01: Normal payload (chữ ký hợp lệ)
-# Expected: 200 OK
-# → Chạy bằng: python sensor.py hoặc tamper_sensor.py (Scene 1)
-# ─────────────────────────────────────────────────────────────────────────────
+@base_url  = http://localhost:5000
+@api_key   = 89583233bea43a5afd7503633c85701baeb35f3bc972f544
+@valid_sig = 0000000000000000000000000000000000000000000000000000000000000000
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-02: Sai API Key
-# Expected: 401 Unauthorized
+# TC-01: Sai API Key → 401 Unauthorized (L1)
 # ─────────────────────────────────────────────────────────────────────────────
-### TC-02
+### TC-01 Wrong API Key
 POST {{base_url}}/api/data
 Content-Type: application/json
 X-API-Key: wrong-key-here
@@ -30,11 +24,30 @@ X-Signature: doesnt-matter
   "nonce":       "aaaaaaaa-0000-0000-0000-000000000001"
 }
 
+###
+
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-03: Thiếu field bắt buộc (thiếu nonce)
-# Expected: 422 Unprocessable
+# TC-02: Timestamp hết hạn → 403 Forbidden (L2a)
 # ─────────────────────────────────────────────────────────────────────────────
-### TC-03
+### TC-02 Expired Timestamp
+POST {{base_url}}/api/data
+Content-Type: application/json
+X-API-Key: {{api_key}}
+X-Signature: {{valid_sig}}
+
+{
+  "deviceId":    "sensor-001",
+  "temperature": 35.72,
+  "timestamp":   1000000000,
+  "nonce":       "aaaaaaaa-0000-0000-0000-000000000002"
+}
+
+###
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TC-03: Thiếu field bắt buộc → 422 Unprocessable
+# ─────────────────────────────────────────────────────────────────────────────
+### TC-03 Missing Fields
 POST {{base_url}}/api/data
 Content-Type: application/json
 X-API-Key: {{api_key}}
@@ -46,11 +59,30 @@ X-Signature: anything
   "timestamp":   1713600000
 }
 
+###
+
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-04: Timestamp hết hạn (hơn 30 giây)
-# Expected: 403 Forbidden — Timestamp expired
+# TC-04: Nhiệt độ ngoài khoảng cho phép → 422 Unprocessable
 # ─────────────────────────────────────────────────────────────────────────────
-### TC-04
+### TC-04 Temperature Out of Range
+POST {{base_url}}/api/data
+Content-Type: application/json
+X-API-Key: {{api_key}}
+X-Signature: anything
+
+{
+  "deviceId":    "sensor-001",
+  "temperature": 200.0,
+  "timestamp":   1713600000,
+  "nonce":       "aaaaaaaa-0000-0000-0000-000000000003"
+}
+
+###
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TC-05: Nonce không phải UUID v4 → 422 Unprocessable
+# ─────────────────────────────────────────────────────────────────────────────
+### TC-05 Invalid Nonce
 POST {{base_url}}/api/data
 Content-Type: application/json
 X-API-Key: {{api_key}}
@@ -59,25 +91,53 @@ X-Signature: anything
 {
   "deviceId":    "sensor-001",
   "temperature": 35.72,
-  "timestamp":   1000000000,
-  "nonce":       "aaaaaaaa-0000-0000-0000-000000000002"
+  "timestamp":   1713600000,
+  "nonce":       "not-a-uuid"
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# TC-05: HMAC sai (payload bị sửa sau khi ký)
-# Expected: 403 Forbidden — HMAC mismatch, record lưu isValidSignature=0
-# → Chạy bằng: python tamper_sensor.py (Scene 2)
-# ─────────────────────────────────────────────────────────────────────────────
+###
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-06: Replay attack (nonce đã dùng rồi)
-# Expected: 403 Forbidden — Replay detected
-# → Chạy bằng: python tamper_sensor.py (Scene 3)
+# TC-06: GET /api/data — Lấy 50 records gần nhất (đã decrypt)
+# Expected: 200 + JSON array với temperature là số thực + encryptedTemp là base64
 # ─────────────────────────────────────────────────────────────────────────────
-
-# ─────────────────────────────────────────────────────────────────────────────
-# TC-07: GET /api/data — Lấy danh sách records đã decrypt
-# Expected: 200 + JSON array
-# ─────────────────────────────────────────────────────────────────────────────
-### TC-07
+### TC-06 Get Records
 GET {{base_url}}/api/data
+
+###
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TC-07: GET /api/audit — Lấy 20 auth events gần nhất
+# Expected: 200 + JSON array với time, code, reason, device, layer
+# ─────────────────────────────────────────────────────────────────────────────
+### TC-07 Get Audit Log
+GET {{base_url}}/api/audit
+
+###
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TC-08: GET /api/stats — Thống kê replay + active devices
+# Expected: 200 + { "replayAttempts": N, "activeDevices": N }
+# ─────────────────────────────────────────────────────────────────────────────
+### TC-08 Get Stats
+GET {{base_url}}/api/stats
+
+###
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TC-09: POST /api/reset — Xóa DB và audit log
+# Expected: 200 + { "status": "ok" }
+# ─────────────────────────────────────────────────────────────────────────────
+### TC-09 Reset Demo
+POST {{base_url}}/api/reset
+
+###
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NOTE — Các TC cần HMAC đúng nên dùng nút trên UI hoặc sensor.py:
+#
+#   TC-Normal  : Click "▶ Send Normal"   → 200 OK (L1✓ L2a✓ L2b✓ L3✓ L4✓)
+#   TC-Tampered: Click "⚠ Send Tampered" → 403 L3 (HMAC mismatch, record saved)
+#   TC-Replay  : Click "↻ Replay Attack" → 403 L2b (nonce đã dùng)
+#   TC-RateLimit: Click "▶▶ Auto-Send"  → 429 L4 (sau ~30 requests/min)
+# ─────────────────────────────────────────────────────────────────────────────

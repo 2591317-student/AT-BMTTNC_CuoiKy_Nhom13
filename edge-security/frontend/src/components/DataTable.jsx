@@ -1,16 +1,29 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import EncryptionModal from './EncryptionModal'
+import Pagination from './Pagination'
 
-export default function DataTable({ records, prevIds }) {
+const PAGE_SIZE = 10
+
+export default function DataTable({ records, prevIds, filter = 'all' }) {
   const [selected, setSelected] = useState(null)
+  const [page, setPage]         = useState(1)
+
+  const visible = filter === 'all'   ? records
+                : filter === 'valid' ? records.filter(r =>  r.isValidSignature)
+                :                     records.filter(r => !r.isValidSignature)
+
+  // Reset to page 1 when filter changes
+  useEffect(() => { setPage(1) }, [filter])
 
   if (records.length === 0) {
-    return (
-      <div className="table-empty">
-        Waiting for data from sensor…
-      </div>
-    )
+    return <div className="table-empty">Waiting for data from sensor…</div>
   }
+
+  if (visible.length === 0) {
+    return <div className="table-empty">No {filter} records yet.</div>
+  }
+
+  const paged = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   return (
     <div className="table-wrapper">
@@ -21,17 +34,24 @@ export default function DataTable({ records, prevIds }) {
             <th>Device ID</th>
             <th>Temperature</th>
             <th>Timestamp</th>
-            <th>Encrypted (DB)</th>
+            <th>Encrypted in DB (AES-256-GCM)</th>
             <th>Status</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          {records.map(r => (
+          {paged.map(r => (
             <Row key={r.id} record={r} isNew={!prevIds.has(r.id)} onInspect={setSelected} />
           ))}
         </tbody>
       </table>
+
+      <Pagination
+        page={page}
+        total={visible.length}
+        pageSize={PAGE_SIZE}
+        onChange={setPage}
+      />
 
       {selected && (
         <EncryptionModal record={selected} onClose={() => setSelected(null)} />

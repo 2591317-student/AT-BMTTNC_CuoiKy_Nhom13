@@ -5,23 +5,26 @@ Chủ đề: **Bảo mật dữ liệu trong hệ thống Edge Computing**
 
 ## Mô tả
 
-Hệ thống demo bảo mật dữ liệu IoT end-to-end với 3 cơ chế chính:
+Hệ thống demo bảo mật dữ liệu IoT end-to-end với 4 lớp bảo vệ:
 
-| Cơ chế | Kỹ thuật | Bảo vệ |
-|---|---|---|
-| Mã hóa dữ liệu | AES-256-GCM | Confidentiality |
-| Xác thực payload | HMAC-SHA256 | Integrity |
-| Chống replay | Nonce + Timestamp | Freshness |
+| Layer | Cơ chế | Kỹ thuật | Bảo vệ |
+|---|---|---|---|
+| L1 | API Key | `X-API-Key` header | Authentication |
+| L2a | Timestamp | Tolerance ±30s | Freshness |
+| L2b | Nonce | UUID v4 + DB check | Replay prevention |
+| L3 | HMAC-SHA256 | `X-Signature` header | Integrity |
+| L4 | Rate Limiting | flask-limiter 30 req/min | DoS prevention |
+| — | AES-256-GCM | AEAD encrypt in DB | Confidentiality |
 
 ## Cấu trúc
 
 ```
 edge-security/
 ├── backend/
-│   ├── api/               ← Flask API + Crypto + DB
+│   ├── api/               ← Flask API + Crypto + DB + WebSocket
 │   └── sensor-simulator/  ← Sensor giả lập (normal + tamper)
 ├── frontend/              ← React + Vite dashboard
-├── shared/                ← API contract, payload mẫu
+├── shared/                ← API contract
 └── tests/                 ← Test cases, demo checklist
 ```
 
@@ -44,6 +47,33 @@ python sensor.py
 ```
 
 Chi tiết xem [SETUP.md](SETUP.md)
+
+## Tính năng
+
+**Backend:**
+- 4-layer security middleware (L1→L4)
+- AES-256-GCM encrypt trước khi lưu SQLite
+- In-memory audit log (20 entries)
+- WebSocket push (flask-socketio) — UI cập nhật realtime
+- HTTPS qua `USE_HTTPS=true` trong `.env`
+- 37 unit tests (`pytest tests/`)
+
+**Frontend:**
+- Dashboard realtime (WebSocket + polling fallback)
+- Biểu đồ nhiệt độ (recharts)
+- Filter bảng: All / Valid / Tampered
+- Export CSV cho records và audit log
+- Layer Status Indicator sau mỗi demo
+- Auto-send mode (gửi tự động mỗi 2s)
+- Payload Inspector + AES-GCM breakdown modal
+- Countdown đến lần refresh tiếp theo
+
+## Chạy unit tests
+
+```bash
+cd backend
+python -m pytest tests/ -v
+```
 
 ## Thành viên
 
