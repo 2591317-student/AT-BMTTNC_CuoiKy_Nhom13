@@ -90,6 +90,9 @@ const LAYER_TAMPERED = { L1: 'pass', L2a: 'pass', L2b: 'pass', L3: 'fail', L4: '
 const LAYER_REPLAY   = { L1: 'pass', L2a: 'pass', L2b: 'fail', L3: 'skip', L4: 'pass' }
 const LAYER_EXPIRED  = { L1: 'pass', L2a: 'fail', L2b: 'skip', L3: 'skip', L4: 'pass' }
 const LAYER_WRONGKEY = { L1: 'fail', L2a: 'skip', L2b: 'skip', L3: 'skip', L4: 'pass' }
+const LAYER_FLOOD    = { L1: 'pass', L2a: 'pass', L2b: 'pass', L3: 'pass', L4: 'fail' }
+
+const FLOOD_TOTAL = 35
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -276,6 +279,29 @@ export default function DemoControls({ onSent }) {
     }
   }
 
+  async function handleFlood() {
+    setBusy(true); setLayers(null)
+    let blocked = 0
+    for (let i = 0; i < FLOOD_TOTAL; i++) {
+      const device    = DEVICES[i % DEVICES.length]
+      const payload   = buildPayload(device.deviceId)
+      const signature = await hmacSign(payload, device.hmacSecret)
+      setLog({ msg: `⚡ Flooding… ${i + 1}/${FLOOD_TOTAL} [${device.deviceId}]${blocked > 0 ? ` — ${blocked} blocked by L4` : ''}`, type: 'warning' })
+      try {
+        const res = await post(payload, signature, device.apiKey)
+        if (res.status === 429) blocked++
+      } catch { /* ignore */ }
+      await new Promise(r => setTimeout(r, 40))
+    }
+    setLayers(blocked > 0 ? LAYER_FLOOD : LAYER_OK)
+    setLog(blocked > 0
+      ? { msg: `⚡ Flood done — ${FLOOD_TOTAL} sent, ${blocked} blocked by L4 rate limit`, type: 'warning' }
+      : { msg: `⚡ Flood done — ${FLOOD_TOTAL} sent, none blocked (reset demo & retry)`, type: 'ok' }
+    )
+    setBusy(false)
+    onSent()
+  }
+
   async function toggleInspect() {
     if (preview) {
       previewOpenRef.current = false
@@ -323,6 +349,11 @@ export default function DemoControls({ onSent }) {
         <Tip text="Sign payload first, then change temperature to 99.9°C — HMAC mismatch detected at L3">
           <button className="btn btn--tampered" onClick={handleTampered} disabled={busy}>
             ⚠ Send Tampered
+          </button>
+        </Tip>
+        <Tip text={`Blast ${FLOOD_TOTAL} valid requests in ~1.5s — rate limiter blocks from request 31 onward (L4)`}>
+          <button className="btn btn--flood" onClick={handleFlood} disabled={busy}>
+            ⚡ Flood Attack
           </button>
         </Tip>
         <Tip text="Preview a freshly-built payload and its HMAC signature before sending">

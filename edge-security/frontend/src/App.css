@@ -127,6 +127,7 @@
 .btn--wrongkey { background: var(--purple-bg); border-color: var(--purple-border); color: var(--purple); }
 .btn--inspect  { background: var(--bg-3);      border-color: var(--border);        color: var(--text-muted); }
 
+.btn--flood    { background: var(--teal-bg);   border-color: var(--teal-border);   color: var(--teal); }
 .btn--reset    { background: var(--bg-3);      border-color: var(--border);        color: var(--text-dim); }
 .btn--auto-off { background: var(--teal-bg);   border-color: var(--teal-border);   color: var(--teal); }
 .btn--auto-on  { background: var(--teal-bg);   border-color: var(--teal-border);   color: var(--teal);
@@ -139,6 +140,7 @@
 .btn--wrongkey:not(:disabled):hover { filter: brightness(1.2); }
 .btn--inspect:hover { color: var(--text); border-color: var(--text-dim); }
 .btn--reset:not(:disabled):hover    { color: var(--text); border-color: var(--text-dim); }
+.btn--flood:not(:disabled):hover    { filter: brightness(1.2); }
 .btn--auto-off:not(:disabled):hover,
 .btn--auto-on:not(:disabled):hover  { filter: brightness(1.2); }
 
