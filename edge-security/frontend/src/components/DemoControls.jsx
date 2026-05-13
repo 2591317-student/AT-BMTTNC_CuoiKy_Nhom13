@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { API_KEY, DEVICE_ID } from '../config'
+import { DEVICES, DEFAULT_DEVICE } from '../config'
 import { hmacSign, buildPayload } from '../utils/hmac'
 
 const AUTO_INTERVAL_MS = 2000   // send every 2s in auto mode
@@ -101,8 +101,10 @@ export default function DemoControls({ onSent }) {
   const [layers, setLayers]         = useState(null)
   const [autoSend, setAutoSend]     = useState(false)
   const [autoCount, setAutoCount]   = useState(0)
-  const lastValid   = useRef(null)
-  const autoTimerRef = useRef(null)
+  const lastValid       = useRef(null)
+  const autoTimerRef    = useRef(null)
+  const autoIndexRef    = useRef(0)     // round-robin index for auto-send
+  const previewOpenRef  = useRef(false) // mirror of preview!=null, safe in stale closures
 
   useEffect(() => {
     if (!autoSend) {
@@ -110,14 +112,17 @@ export default function DemoControls({ onSent }) {
       return
     }
     autoTimerRef.current = setInterval(() => {
-      handleNormal()
+      // round-robin: pick next device in cycle
+      const device = DEVICES[autoIndexRef.current % DEVICES.length]
+      autoIndexRef.current += 1
+      handleNormalFor(device)
       setAutoCount(c => c + 1)
     }, AUTO_INTERVAL_MS)
     return () => clearInterval(autoTimerRef.current)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoSend])
 
-  async function post(payload, signature, apiKey = API_KEY) {
+  async function post(payload, signature, apiKey) {
     return fetch('/api/data', {
       method:  'POST',
       headers: {
@@ -129,43 +134,53 @@ export default function DemoControls({ onSent }) {
     })
   }
 
-  async function handleNormal() {
-    setBusy(true); setLayers(null)
-    setLog({ msg: 'Sending normal payload…', type: 'idle' })
+  // Core send logic — accepts any device object
+  async function handleNormalFor(device, { silent = false } = {}) {
+    if (!silent) { setBusy(true); setLayers(null) }
+    if (!silent) setLog({ msg: `Sending normal payload [${device.deviceId}]…`, type: 'idle' })
     try {
-      const payload   = buildPayload(DEVICE_ID)
-      const signature = await hmacSign(payload)
-      const res       = await post(payload, signature)
+      const payload   = buildPayload(device.deviceId)
+      const signature = await hmacSign(payload, device.hmacSecret)
+
+      // If inspector is open, refresh it with the current payload being sent
+      if (previewOpenRef.current) setPreview({ payload, signature })
+
+      const res       = await post(payload, signature, device.apiKey)
 
       if (res.ok) {
-        lastValid.current = { payload, signature }
+        lastValid.current = { payload, signature, apiKey: device.apiKey }
         setReplayReady(true)
         setLayers(LAYER_OK)
-        setLog({ msg: `✓ 200 OK — temp=${payload.temperature}°C  nonce=${payload.nonce.slice(0, 8)}…`, type: 'ok' })
+        setLog({ msg: `✓ 200 OK [${device.deviceId}] — temp=${payload.temperature}°C  nonce=${payload.nonce.slice(0, 8)}…`, type: 'ok' })
       } else {
         const body = await res.json().catch(() => ({}))
-        setLog({ msg: `✗ ${res.status} — ${body.reason ?? res.statusText}`, type: 'error' })
+        setLog({ msg: `✗ ${res.status} [${device.deviceId}] — ${body.reason ?? res.statusText}`, type: 'error' })
       }
     } catch (e) {
       setLog({ msg: `✗ Cannot reach server — ${e.message}`, type: 'error' })
     } finally {
-      setBusy(false)
+      if (!silent) setBusy(false)
       onSent()
     }
+  }
+
+  // Manual "Send Normal" button → always uses DEFAULT_DEVICE (sensor-001)
+  async function handleNormal() {
+    await handleNormalFor(DEFAULT_DEVICE)
   }
 
   async function handleTampered() {
     setBusy(true); setLayers(null)
     setLog({ msg: 'Building tampered payload…', type: 'idle' })
     try {
-      const payload   = buildPayload(DEVICE_ID)
-      const signature = await hmacSign(payload)          // sign BEFORE tampering
+      const payload   = buildPayload(DEFAULT_DEVICE.deviceId)
+      const signature = await hmacSign(payload, DEFAULT_DEVICE.hmacSecret)   // sign BEFORE tampering
       const tampered  = { ...payload, temperature: 99.9 }
 
       setLog({ msg: `⚠ Injecting 99.9°C (original ${payload.temperature}°C) — signature unchanged…`, type: 'warning' })
       await new Promise(r => setTimeout(r, 500))
 
-      const res  = await post(tampered, signature)
+      const res  = await post(tampered, signature, DEFAULT_DEVICE.apiKey)
       const body = await res.json().catch(() => ({}))
       setLayers(LAYER_TAMPERED)
       setLog({
@@ -183,10 +198,10 @@ export default function DemoControls({ onSent }) {
   async function handleReplay() {
     if (!lastValid.current) return
     setBusy(true); setLayers(null)
-    const { payload, signature } = lastValid.current
+    const { payload, signature, apiKey } = lastValid.current
     setLog({ msg: `Replaying nonce ${payload.nonce.slice(0, 8)}… (already used)`, type: 'warning' })
     try {
-      const res  = await post(payload, signature)
+      const res  = await post(payload, signature, apiKey)
       const body = await res.json().catch(() => ({}))
       setLayers(LAYER_REPLAY)
       setLog({ msg: `✗ ${res.status} — ${body.reason ?? 'Forbidden'} — replay blocked`, type: 'error' })
@@ -201,10 +216,10 @@ export default function DemoControls({ onSent }) {
     setBusy(true); setLayers(null)
     setLog({ msg: 'Building payload with timestamp 35s in the past…', type: 'warning' })
     try {
-      const payload   = buildPayload(DEVICE_ID)
+      const payload   = buildPayload(DEFAULT_DEVICE.deviceId)
       payload.timestamp = Math.floor(Date.now() / 1000) - 35   // 35s old, tolerance is 30s
-      const signature = await hmacSign(payload)
-      const res       = await post(payload, signature)
+      const signature = await hmacSign(payload, DEFAULT_DEVICE.hmacSecret)
+      const res       = await post(payload, signature, DEFAULT_DEVICE.apiKey)
       const body      = await res.json().catch(() => ({}))
       setLayers(LAYER_EXPIRED)
       setLog({ msg: `✗ ${res.status} — ${body.reason ?? 'Forbidden'} — timestamp too old (35s > 30s tolerance)`, type: 'error' })
@@ -219,7 +234,7 @@ export default function DemoControls({ onSent }) {
     setBusy(true); setLayers(null)
     setLog({ msg: 'Sending with wrong API key…', type: 'idle' })
     try {
-      const payload = buildPayload(DEVICE_ID)
+      const payload = buildPayload(DEFAULT_DEVICE.deviceId)
       const res = await fetch('/api/data', {
         method:  'POST',
         headers: {
@@ -262,9 +277,18 @@ export default function DemoControls({ onSent }) {
   }
 
   async function toggleInspect() {
-    if (preview) { setPreview(null); return }
-    const payload   = buildPayload(DEVICE_ID)
-    const signature = await hmacSign(payload)
+    if (preview) {
+      previewOpenRef.current = false
+      setPreview(null)
+      return
+    }
+    // Show the device that auto-send will use next (or sensor-001 if auto-send is off)
+    const device    = autoSend
+      ? DEVICES[autoIndexRef.current % DEVICES.length]
+      : DEFAULT_DEVICE
+    const payload   = buildPayload(device.deviceId)
+    const signature = await hmacSign(payload, device.hmacSecret)
+    previewOpenRef.current = true
     setPreview({ payload, signature })
   }
 

@@ -43,13 +43,22 @@ def client(monkeypatch, tmp_path):
         yield c
 
 
+def _get_device_001():
+    """Return (api_key, hmac_secret) for sensor-001 from DEVICE_REGISTRY."""
+    from config import DEVICE_REGISTRY
+    # sensor-001 is always the first entry in the registry
+    api_key     = list(DEVICE_REGISTRY.keys())[0]
+    hmac_secret = DEVICE_REGISTRY[api_key]
+    return api_key, hmac_secret
+
+
 def _post(client, payload, sig, api_key=None):
-    from config import API_KEY, HMAC_SECRET
+    default_key, _ = _get_device_001()
     return client.post(
         "/api/data",
         json=payload,
         headers={
-            "X-API-Key":   api_key or API_KEY,
+            "X-API-Key":   api_key or default_key,
             "X-Signature": sig,
         },
     )
@@ -57,59 +66,59 @@ def _post(client, payload, sig, api_key=None):
 
 class TestMiddleware:
     def test_valid_request_returns_200(self, client):
-        from config import HMAC_SECRET
+        _, secret = _get_device_001()
         p   = _payload()
-        res = _post(client, p, _sign(p, HMAC_SECRET))
+        res = _post(client, p, _sign(p, secret))
         assert res.status_code == 200
 
     def test_wrong_api_key_returns_401(self, client):
-        from config import HMAC_SECRET
+        _, secret = _get_device_001()
         p   = _payload()
-        res = _post(client, p, _sign(p, HMAC_SECRET), api_key="wrong-key")
+        res = _post(client, p, _sign(p, secret), api_key="wrong-key")
         assert res.status_code == 401
 
     def test_expired_timestamp_returns_403(self, client):
-        from config import HMAC_SECRET
+        _, secret = _get_device_001()
         p = _payload({"timestamp": int(time.time()) - 35})
-        res = _post(client, p, _sign(p, HMAC_SECRET))
+        res = _post(client, p, _sign(p, secret))
         assert res.status_code == 403
         assert "Timestamp" in res.get_json()["reason"]
 
     def test_replay_returns_403(self, client):
-        from config import HMAC_SECRET
+        _, secret = _get_device_001()
         p   = _payload()
-        sig = _sign(p, HMAC_SECRET)
+        sig = _sign(p, secret)
         _post(client, p, sig)           # first request OK
         res = _post(client, p, sig)     # replay
         assert res.status_code == 403
         assert "Replay" in res.get_json()["reason"]
 
     def test_tampered_payload_returns_403(self, client):
-        from config import HMAC_SECRET
+        _, secret = _get_device_001()
         p   = _payload()
-        sig = _sign(p, HMAC_SECRET)
+        sig = _sign(p, secret)
         tampered = {**p, "temperature": 99.9}
         res = _post(client, tampered, sig)
         assert res.status_code == 403
         assert "HMAC" in res.get_json()["reason"]
 
     def test_missing_fields_returns_422(self, client):
-        from config import API_KEY
+        api_key, _ = _get_device_001()
         res = client.post(
             "/api/data",
             json={"deviceId": "sensor-001"},
-            headers={"X-API-Key": API_KEY, "X-Signature": "x"},
+            headers={"X-API-Key": api_key, "X-Signature": "x"},
         )
         assert res.status_code == 422
 
     def test_invalid_nonce_uuid_returns_422(self, client):
-        from config import HMAC_SECRET
+        _, secret = _get_device_001()
         p   = _payload({"nonce": "not-a-uuid"})
-        res = _post(client, p, _sign(p, HMAC_SECRET))
+        res = _post(client, p, _sign(p, secret))
         assert res.status_code == 422
 
     def test_temperature_out_of_range_returns_422(self, client):
-        from config import HMAC_SECRET
+        _, secret = _get_device_001()
         p   = _payload({"temperature": 200.0})
-        res = _post(client, p, _sign(p, HMAC_SECRET))
+        res = _post(client, p, _sign(p, secret))
         assert res.status_code == 422

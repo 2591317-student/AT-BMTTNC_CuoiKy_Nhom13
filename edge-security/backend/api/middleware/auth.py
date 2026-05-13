@@ -3,7 +3,7 @@
 
 Layer 1 — API Key       : reject unknown devices immediately (401)
 Layer 2 — Replay guard  : reject reused nonces or expired timestamps (403)
-Layer 3 — HMAC signature: verify payload integrity
+Layer 3 — HMAC signature: verify payload integrity using per-device secret
 
 For Layer 3, we intentionally do NOT hard-reject here.
 Instead we set g.is_valid_signature so the route can:
@@ -20,7 +20,7 @@ from functools import wraps
 from flask import g, request, jsonify
 
 import audit
-from config import API_KEY, HMAC_SECRET, TIMESTAMP_TOLERANCE
+from config import DEVICE_REGISTRY, TIMESTAMP_TOLERANCE
 from crypto.hmac_verifier import verify
 from db.database import nonce_exists
 
@@ -41,8 +41,10 @@ def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
 
-        # ── Layer 1: API Key ──────────────────────────────────────────────
-        if request.headers.get("X-API-Key") != API_KEY:
+        # ── Layer 1: API Key lookup ───────────────────────────────────────
+        api_key    = request.headers.get("X-API-Key", "")
+        hmac_secret = DEVICE_REGISTRY.get(api_key)
+        if not hmac_secret:
             _log(401, "Unauthorized — Invalid API key", layer="L1")
             return jsonify({"error": "Unauthorized", "reason": "Invalid API key"}), 401
 
@@ -84,10 +86,10 @@ def require_auth(f):
             _log(403, "Replay detected — nonce already used", device, layer="L2b")
             return jsonify({"error": "Forbidden", "reason": "Replay detected — nonce already used"}), 403
 
-        # ── Layer 3: HMAC signature (soft check — result passed via g) ────
-        received_sig      = request.headers.get("X-Signature", "")
-        g.is_valid_sig    = verify(data, received_sig, HMAC_SECRET)
-        g.validated_data  = data
+        # ── Layer 3: HMAC signature (per-device secret, soft check) ───────
+        received_sig     = request.headers.get("X-Signature", "")
+        g.is_valid_sig   = verify(data, received_sig, hmac_secret)
+        g.validated_data = data
 
         return f(*args, **kwargs)
 

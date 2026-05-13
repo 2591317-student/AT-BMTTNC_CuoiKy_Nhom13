@@ -1,5 +1,3 @@
-import { HMAC_SECRET } from '../config'
-
 /** Replicates Python: json.dumps(payload, sort_keys=True, separators=(',',':')) */
 function canonicalize(obj) {
   const sorted = {}
@@ -7,11 +5,11 @@ function canonicalize(obj) {
   return JSON.stringify(sorted)
 }
 
-export async function hmacSign(payload) {
+export async function hmacSign(payload, hmacSecret) {
   const encoder = new TextEncoder()
   const key = await crypto.subtle.importKey(
     'raw',
-    encoder.encode(HMAC_SECRET),
+    encoder.encode(hmacSecret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign'],
