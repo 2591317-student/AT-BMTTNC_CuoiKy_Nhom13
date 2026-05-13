@@ -10,7 +10,7 @@ export function useSensorData() {
   const [prevIds, setPrevIds]         = useState(new Set())
   const [lastUpdated, setLastUpdated] = useState(null)
   const [auditLog, setAuditLog]       = useState([])
-  const [extraStats, setExtraStats]   = useState({ replayAttempts: 0, activeDevices: 0 })
+  const [extraStats, setExtraStats]   = useState({ replayAttempts: 0, activeDevices: 0, layerCounts: { L1: 0, L2a: 0, L2b: 0, L3: 0, L4: 0 } })
   const [countdown, setCountdown]     = useState(REFRESH_S)
   const countdownRef                  = useRef(REFRESH_S)
 
@@ -75,6 +75,7 @@ export function useSensorData() {
     tampered:       records.filter(r => !r.isValidSignature).length,
     replayAttempts: extraStats.replayAttempts,
     activeDevices:  extraStats.activeDevices,
+    layerCounts:    extraStats.layerCounts ?? { L1: 0, L2a: 0, L2b: 0, L3: 0, L4: 0 },
   }
 
   return { records, stats, online, prevIds, lastUpdated, auditLog, countdown, refresh: fetch_ }

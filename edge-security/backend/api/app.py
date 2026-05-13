@@ -128,6 +128,7 @@ def get_stats():
     return jsonify({
         "replayAttempts": audit.get_replay_count(),
         "activeDevices":  devices,
+        "layerCounts":    audit.get_layer_counts(),
     }), 200
 
 

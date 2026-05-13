@@ -305,14 +305,9 @@ export default function DemoControls({ onSent }) {
             ▶ Send Normal
           </button>
         </Tip>
-        <Tip text="Sign payload first, then change temperature to 99.9°C — HMAC mismatch detected at L3">
-          <button className="btn btn--tampered" onClick={handleTampered} disabled={busy}>
-            ⚠ Send Tampered
-          </button>
-        </Tip>
-        <Tip text="Resend the last valid nonce — server blocks it at L2b (replay guard)">
-          <button className="btn btn--replay" onClick={handleReplay} disabled={busy || !replayReady}>
-            ↻ Replay Attack
+        <Tip text="Use an unknown API key — device rejected immediately at L1 (401 Unauthorized)">
+          <button className="btn btn--wrongkey" onClick={handleWrongKey} disabled={busy}>
+            🔑 Wrong API Key
           </button>
         </Tip>
         <Tip text="Send a payload timestamped 35 seconds ago — server rejects at L2a (>30s tolerance)">
@@ -320,9 +315,14 @@ export default function DemoControls({ onSent }) {
             ⏱ Expired Timestamp
           </button>
         </Tip>
-        <Tip text="Use an unknown API key — device rejected immediately at L1 (401 Unauthorized)">
-          <button className="btn btn--wrongkey" onClick={handleWrongKey} disabled={busy}>
-            🔑 Wrong API Key
+        <Tip text="Resend the last valid nonce — server blocks it at L2b (replay guard)">
+          <button className="btn btn--replay" onClick={handleReplay} disabled={busy || !replayReady}>
+            ↻ Replay Attack
+          </button>
+        </Tip>
+        <Tip text="Sign payload first, then change temperature to 99.9°C — HMAC mismatch detected at L3">
+          <button className="btn btn--tampered" onClick={handleTampered} disabled={busy}>
+            ⚠ Send Tampered
           </button>
         </Tip>
         <Tip text="Preview a freshly-built payload and its HMAC signature before sending">

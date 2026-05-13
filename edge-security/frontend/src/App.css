@@ -65,6 +65,29 @@
 .stat-card--device   .stat-value { color: var(--blue); }
 .stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
 
+/* ── Layer breakdown stats ────────────────────────────────────── */
+.stats--layers {
+  grid-template-columns: auto repeat(5, 1fr);
+  align-items: center;
+}
+.stats-layer-label {
+  font-size: 0.72rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-dim); white-space: nowrap;
+  padding: 0 4px;
+}
+.stat-card--layer-l1  { border-left: 3px solid var(--purple-border); }
+.stat-card--layer-l2a { border-left: 3px solid var(--blue-border);   }
+.stat-card--layer-l2b { border-left: 3px solid var(--orange-border); }
+.stat-card--layer-l3  { border-left: 3px solid var(--red-border);    }
+.stat-card--layer-l4  { border-left: 3px solid var(--teal-border);   }
+
+.stat-card--layer-l1  .stat-value { color: var(--purple); }
+.stat-card--layer-l2a .stat-value { color: var(--blue);   }
+.stat-card--layer-l2b .stat-value { color: var(--orange); }
+.stat-card--layer-l3  .stat-value { color: var(--red);    }
+.stat-card--layer-l4  .stat-value { color: var(--teal);   }
+
 /* ── Controls ─────────────────────────────────────────────────── */
 .controls {
   padding: 20px 24px;
@@ -494,9 +517,12 @@
 /* ── Responsive ───────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .stats { grid-template-columns: repeat(3, 1fr); }
+  .stats--layers { grid-template-columns: 1fr 1fr 1fr; }
+  .stats-layer-label { grid-column: 1 / -1; padding: 0; }
 }
 @media (max-width: 640px) {
   .stats        { grid-template-columns: 1fr 1fr; }
+  .stats--layers { grid-template-columns: 1fr 1fr; }
   .header       { flex-direction: column; align-items: flex-start; gap: 12px; }
   .controls-row { flex-direction: column; }
   .btn          { width: 100%; justify-content: center; }

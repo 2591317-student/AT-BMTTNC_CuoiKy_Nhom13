@@ -25,6 +25,15 @@ export default function App() {
         <StatCard value={stats.activeDevices}  label="Active Devices"    variant="device"   />
       </section>
 
+      <section className="stats stats--layers">
+        <div className="stats-layer-label">Blocked by Layer</div>
+        <StatCard value={stats.layerCounts.L1}  label="L1 · API Key"        variant="layer-l1"  />
+        <StatCard value={stats.layerCounts.L2a} label="L2a · Timestamp"     variant="layer-l2a" />
+        <StatCard value={stats.layerCounts.L2b} label="L2b · Nonce Replay"  variant="layer-l2b" />
+        <StatCard value={stats.layerCounts.L3}  label="L3 · HMAC Signature" variant="layer-l3"  />
+        <StatCard value={stats.layerCounts.L4}  label="L4 · Rate Limit"     variant="layer-l4"  />
+      </section>
+
       <DemoControls onSent={refresh} />
 
       <TemperatureChart records={records} />
